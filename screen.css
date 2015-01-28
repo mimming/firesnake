@@ -1,0 +1,28 @@
+body {
+    background-color: #C3CBD3;
+}
+
+canvas {
+    background-color: #000;
+    padding-left: 0;
+    padding-right: 0;
+    margin-left: auto;
+    margin-right: auto;
+    display: block;
+}
+
+footer {
+    width: 400px;
+    padding-left: 0;
+    padding-right: 0;
+    margin-left: auto;
+    margin-right: auto;
+    display: block;
+}
+#leaderboard {
+    width: 200px;
+}
+#touch-controls {
+    width: 200px;
+
+}
