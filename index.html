@@ -1,9 +1,14 @@
 <!DOCTYPE html>
-
-<html>
+<html lang="en">
 <head>
-<link rel="stylesheet" href="screen.css">
+<!-- jQuery -->
 <script src="https://code.jquery.com/jquery-2.1.3.min.js"></script>
+<!-- bootstrap -->
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap-theme.min.css">
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/js/bootstrap.min.js"></script>
+
+<link rel="stylesheet" href="screen.css">
 <script>
 $('document').ready(function () {
   // Constants
@@ -23,22 +28,29 @@ $('document').ready(function () {
     lastKeystroke = e.which;
   });
 
-  // init player state
-  var playerState = {
-    alive: true,
-    snakeDirection: "e",
-    snakePieces: [],
-    apples: [],
-    untilNextApple: APPLE_INTERVAL_MS
-  };
-  playerState.apples.push(getRandomUnusedLocation(playerState));
-  playerState.snakePieces.push(getRandomUnusedLocation(playerState));
-  growSnake(playerState);
-  growSnake(playerState);
+  var playerState = {};
 
+  initGame();
+  
+  function initGame() {
+    playerState = {
+      alive: true,
+      snakeDirection: "e",
+      snakePieces: [],
+      apples: [],
+      untilNextApple: APPLE_INTERVAL_MS,
+      isDead: false
+    };
 
-  // Start the game
-  gameLoop();
+    playerState.apples.push(getRandomUnusedLocation(playerState));
+    playerState.snakePieces.push(getRandomUnusedLocation(playerState));
+    growSnake(playerState);
+    growSnake(playerState);
+
+    // Start the game
+    gameLoop();
+  }
+
 
   function gameLoop() {
     var $gameCanvas = $("#game-canvas");
@@ -76,11 +88,12 @@ $('document').ready(function () {
 
     // Remove last element
     playerState.snakePieces.pop();
+    
+    // Create a new first element
     var newPiece = {};
     newPiece.x = playerState.snakePieces[0].x;
     newPiece.y = playerState.snakePieces[0].y;
-
-    // TODO: prevnet turning back on self
+    
     switch (playerState.snakeDirection) {
       case "n":
         newPiece.y -= 1;
@@ -96,7 +109,7 @@ $('document').ready(function () {
     }
     playerState.snakePieces.unshift(newPiece);
 
-    //Spawn apples
+    // Spawn apples
     if (playerState.untilNextApple > 0) {
       playerState.untilNextApple -= FRAME_SPEED_MS;
     } else {
@@ -104,7 +117,24 @@ $('document').ready(function () {
       playerState.untilNextApple = APPLE_INTERVAL_MS;
     }
 
-    // TODO: check for collisions (snakes, edges)
+    // If the player went off the edge, end their game
+    var snakeHead = playerState.snakePieces[0];
+    if(snakeHead.x <= 0 || snakeHead.x >= LOGICAL_GAME_SIZE ||
+        snakeHead.y <= 0 || snakeHead.y >= LOGICAL_GAME_SIZE) {
+      playerDies(playerState); 
+      return;
+    }
+    
+    // If the player collides with self, end their game
+    var snakeHead = playerState.snakePieces[0];
+    // skip first one so use a stupid loop
+    for (var i = 1; i < playerState.snakePieces.length; i++) {
+      var snakePiece = playerState.snakePieces[i];
+      if(snakePiece.x === snakeHead.x && snakePiece.y === snakeHead.y) {
+        playerDies(playerState);
+        return;
+      }
+    }
 
     // check for collisions (apples)
     for (var i in playerState.apples) {
@@ -139,7 +169,6 @@ $('document').ready(function () {
     // Allow draw
     gameContext.restore();
 
-    // Schedule next loop execution
     setTimeout(gameLoop, FRAME_SPEED_MS);
   }
 
@@ -157,7 +186,7 @@ $('document').ready(function () {
       var collision = false;
 
       // Check existing game pieces
-      // TODO: consider extracting this
+      // TODO: consider decoupling this from game representation
       var gamePieces = playerState.snakePieces.concat(playerState.apples);
 
       for (var i in gamePieces) {
@@ -182,6 +211,13 @@ $('document').ready(function () {
     playerState.snakePieces.push(newPiece);
   }
 
+  function playerDies(playerState) {
+    playerState.isDead = true;
+    if(confirm("you died! Final score: " + playerState.snakePieces.length + "Play again?")) {
+      initGame();
+    }
+  }
+  
   /**
    * Scale the canvas to fit the screen to match these constraints:
    * - Canvas must be square
@@ -214,17 +250,19 @@ $('document').ready(function () {
 </script>
 </head>
 <body>
-<canvas id="game-canvas" height="500" width="500"></canvas>
-<footer>
-  <dl id="leaderboard">
-    <dt>Jenny Tong</dt>
-    <dd>100</dd>
-    <dt>Jenny Tong</dt>
-    <dd>100</dd>
-    <dt>Jenny Tong</dt>
-    <dd>100</dd>
-  </dl>
-  <div id="touch-controls"></div>
-</footer>
+<div class="container">
+  <canvas id="game-canvas" height="500" width="500"></canvas>
+  <footer>
+    <dl id="leaderboard">
+      <dt>Jenny Tong</dt>
+      <dd>100</dd>
+      <dt>Jenny Tong</dt>
+      <dd>100</dd>
+      <dt>Jenny Tong</dt>
+      <dd>100</dd>
+    </dl>
+    <div id="touch-controls"></div>
+  </footer>
+</div>
 </body>
 </html>
