@@ -229,10 +229,12 @@ $('document').ready(function () {
 
       // If the player collides with self, end their game
       // skip own snakes head
-      for (var i = 1; i < playerState.snakePieces.length; i++) {
-        var snakePiece = playerState.snakePieces[i];
-        if (snakePiece.x === snakeHead.x && snakePiece.y === snakeHead.y) {
-          playerDies(playerState);
+      if(playerState != null) {
+        for (var i = 1; i < playerState.snakePieces.length; i++) {
+          var snakePiece = playerState.snakePieces[i];
+          if (snakePiece.x === snakeHead.x && snakePiece.y === snakeHead.y) {
+            playerDies(playerState);
+          }
         }
       }
 
