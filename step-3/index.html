@@ -10,15 +10,18 @@
 <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap-theme.min.css">
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/js/bootstrap.min.js"></script>
 
-<!-- firebase -->
-<script src="https://cdn.firebase.com/js/client/2.2.0/firebase.js"></script>
+<!-- Firebase -->
+<script src="https://cdn.firebase.com/js/client/2.2.1/firebase.js"></script>
 
 <link rel="stylesheet" href="assets/screen.css">
 <script>
 $('document').ready(function () {
   // Firebase
   var gameRef = new Firebase("https://gdcsnake.firebaseio.com/game");
-  var playersRef = new Firebase("https://gdcsnake.firebaseio.com/players");
+  var playerRef = new Firebase("https://gdcsnake.firebaseio.com/player");
+
+  // A new ref for player metadata
+  var usersRef = new Firebase("https://gdcsnake.firebaseio.com/users");
 
   // Constants
   // ms between game steps
@@ -34,14 +37,14 @@ $('document').ready(function () {
   var currentUserUid;
   var cachedAuthData;
 
-  var playersState = [];
+  var playerState = {};
   var gameState = {apples: []};
 
-  // Listen for changes to all players (including mine)
-  playersRef.on("value", function (snapshot) {
-    playersState = snapshot.val();
-
+  // Listen for changes to player game state
+  playerRef.on("value", function (snapshot) {
+    playerState = snapshot.val();
   });
+ 
 
   // Listen for changes to the shared game state
   gameRef.on("value", function (snapshot) {
@@ -50,33 +53,41 @@ $('document').ready(function () {
       gameState = snapshot.val();
     }
   });
-
-  // Listen for added or removed players (for currently playing list)
-  playersRef.on("child_added", function (snapshot) {
-    var player = snapshot.val();
-    var uid = snapshot.key();
-
-    // Update currently playing list
-    var newPlayerHtml = "";
-    //TODO: XSS
-    newPlayerHtml += "<li class='player' id='player" + uid.replace(":","-") + "' style='background-color: hsla(" + getPlayerHue(uid) + ", 80%, 50%, 1)'>" +
-          "<img src='" + player.imageUrl + "'/>" + player.displayName + "</li>";
-    
-    $("#currently-playing").append(newPlayerHtml);
-  });
-
-  // Listen for added or removed players (for currently playing list)
-  playersRef.on("child_removed", function (snapshot) {
-    var uid = snapshot.key();
-    var currentlyPlayingId = "player"+uid.replace(":","-");
   
+  // Listen for added or removed players (for currently playing list)
+  usersRef.on("child_added", function (snapshot) {
+    var user = snapshot.val();
+    var uid = snapshot.key();
+
     // Update currently playing list
-    $("#"+currentlyPlayingId).remove();
+    var newUserHtml = "";
+
+    // Sanitize to prevent XSS
+
+    var sanitizedUid = $("#hiddencruft").text(uid).html();
+    var sanitizedImageUrl = $("#hiddencruft").text(user.imageUrl).html();
+    var sanitizedDisplayName = $("#hiddencruft").text(user.displayName).html();
+
+    newUserHtml += "<li class='player' id='player" + sanitizedUid.replace(":", "-") +
+        "' style='background-color: hsla(" + getPlayerHue(sanitizedUid) + ", 80%, 50%, 1)'>" +
+        "<img src='" + sanitizedImageUrl + "'/>" + sanitizedDisplayName + "</li>";
+
+    $("#currently-playing").append(newUserHtml);
   });
+  
+  // Listen for added or removed players (for currently playing list)
+  usersRef.on("child_removed", function (snapshot) {
+    var uid = snapshot.key();
+    var toBeRemovedId = "player" + uid.replace(":", "-");
+
+    // Update currently playing list
+    $("#" + toBeRemovedId).remove();
+  });
+
 
   // Login click handler
   $("#login-button").click(function () {
-    playersRef.authWithOAuthPopup("google", function (error, authData) {
+    usersRef.authWithOAuthPopup("google", function (error, authData) {
       if (error) {
         console.log("Login Failed!", error);
       } else {
@@ -85,28 +96,36 @@ $('document').ready(function () {
     });
   });
 
-  playersRef.onAuth(function (authData) {
+  usersRef.onAuth(function (authData) {
     if (authData) {
       console.log("Authenticated with uid:", authData.uid);
-      createNewPlayer(authData);
 
-      // Set which player is the current player
+      // cached current user data
       currentUserUid = authData.uid;
       cachedAuthData = authData;
+
+      usersRef.child(authData.uid).set({
+        displayName: authData.google.displayName,
+        imageUrl: authData.google.cachedUserProfile.picture
+      });
+
+      // Remove this user on disconnect
+      usersRef.child(authData.uid).onDisconnect().remove();
+
+      $("#login-container").hide();
     } else {
-      console.log("Client unauthenticated.")
+      console.log("Client unauthenticated.");
+      $("#login-container").show();
     }
   });
 
   $("#play-again").click(function () {
     $("#score-alert").hide();
-    createNewPlayer(cachedAuthData);
+    createNewPlayer();
   });
 
-  function createNewPlayer(authData) {
+  function createNewPlayer() {
     var playerState = {
-      displayName: authData.google.displayName,
-      imageUrl: authData.google.cachedUserProfile.picture,
       snakeDirection: "e",
       snakePieces: []
     };
@@ -115,10 +134,7 @@ $('document').ready(function () {
     growSnake(playerState);
 
     // Save the player
-    playersRef.child(authData.uid).set(playerState);
-
-    // Remove this player on disconnect
-    playersRef.child(authData.uid).onDisconnect().remove();
+    playerRef.set(playerState);
   }
 
   // Listen for keystrokes
@@ -136,11 +152,6 @@ $('document').ready(function () {
     var canvasSize = $gameCanvas.width();
     var featureSize = canvasSize / LOGICAL_GAME_SIZE;
 
-    var playerState = null;
-    if(playersState != null) {
-      playerState = playersState[currentUserUid];
-    }
-    
     if (playerState != null && playerState.snakePieces != null) {
       // process key input
       switch (lastKeystroke) {
@@ -165,6 +176,9 @@ $('document').ready(function () {
           }
       }
       lastKeystroke = 0;
+      
+      // Save the direction change to Firebase
+      playerRef.set(playerState);
 
       // Move the player's snake
 
@@ -190,13 +204,16 @@ $('document').ready(function () {
           newPiece.x -= 1;
       }
       playerState.snakePieces.unshift(newPiece);
-      playersRef.child(currentUserUid).set(playerState);
+      
+      // Save the direction change to Firebase
+      playerRef.set(playerState);
 
 
       // Spawn apples
       if (untilNextApple > 0) {
         untilNextApple -= GAME_STEP_SPEED;
       } else {
+        // Use Firebase push to create new apples
         gameRef.child("apples").push(getRandomUnusedLocation());
         untilNextApple = APPLE_INTERVAL_MS;
       }
@@ -219,40 +236,16 @@ $('document').ready(function () {
         }
       }
 
-      // If player collides with any other snake, end their game
-      for (var playerUid in playersState) {
-        // Skip current player (it already got special treatment)
-        if (playerUid == currentUserUid) {
-          break;
-        }
-
-        var otherPlayer = playersState[playerUid];
-
-        // Skip dead players
-        if (otherPlayer.snakePieces == null) {
-          break;
-        }
-
-
-        for (var i = 0; i < otherPlayer.snakePieces.length; i++) {
-          var snakePiece = otherPlayer.snakePieces[i];
-          if (snakePiece.x === snakeHead.x && snakePiece.y === snakeHead.y) {
-            playerDies(playerState);
-          }
-        }
-      }
-
       // check for apple collisions
       for (var i in gameState.apples) {
         var apple = gameState.apples[i];
         if (apple.x === snakeHead.x && apple.y === snakeHead.y) {
           gameRef.child("apples").child(i).remove();
           growSnake(playerState);
-          playersRef.child(currentUserUid).set(playerState);
+          playerRef.set(playerState);
         }
       }
     }
-
 
     // Stop draws
     gameContext.save();
@@ -262,12 +255,12 @@ $('document').ready(function () {
     gameContext.fillRect(0, 0, canvasSize, canvasSize);
 
     // Draw snakes
-    for (var playerUid in playersState) {
-      var player = playersState[playerUid];
+    var player = playerState;
 
+    if(player != null) {
       for (var i in player.snakePieces) {
         var snakePiece = player.snakePieces[i];
-        gameContext.fillStyle = "hsla(" + getPlayerHue(playerUid) + ", 80%, 50%, 1)";
+        gameContext.fillStyle = "hsla(" + getPlayerHue() + ", 80%, 50%, 1)";
         gameContext.fillRect(snakePiece.x * featureSize, snakePiece.y * featureSize, featureSize, featureSize);
       }
     }
@@ -288,7 +281,7 @@ $('document').ready(function () {
       var score = Object.keys(playerState.snakePieces).length;
 
       // Remove the current player
-      playersRef.child(currentUserUid).remove();
+      playerRef.remove();
 
       // Display the score and the play again button
       $("#score").text(score);
@@ -315,8 +308,8 @@ $('document').ready(function () {
         gamePieces.push(gameState.apples[i]);
       }
 
-      for (var i in playersState) {
-        var playerState = playersState[i];
+      for (var i in playerState) {
+        var playerState = playerState[i];
         gamePieces = gamePieces.concat(playerState.snakePieces);
       }
 
@@ -344,8 +337,8 @@ $('document').ready(function () {
     playerState.snakePieces.push(newPiece);
   }
 
-  function getPlayerHue(playerUid) {
-    return playerUid.split(":")[1] % 360;
+  function getPlayerHue() {
+    return 180;
   }
 });
 </script>
@@ -361,30 +354,24 @@ $('document').ready(function () {
       You died! Final score: <span id="score">0</span>
       <button id='play-again'>Play again?</button>
     </div>
-
   </div>
   <div class="row">
     <div class="two-col">
       <h4>How to play</h4>
       <ol>
-        <li><a id="login-button" href="javascript:void(0);"><img style="width: 182px;"
-                                                                 src="assets/sign-in-with-google.png"/></a></li>
+        <li id="login-container"><a id="login-button" href="javascript:void(0);">
+          <img style="width: 182px;" src="assets/sign-in-with-google.png"/>
+        </a></li>
         <li>Move with arrow keys.</li>
         <li>Eat apples.</li>
       </ol>
     </div>
-
     <div class="two-col">
       <h4>Playing now</h4>
-      <ul id="currently-playing">
-
-
-      </ul>
-
+      <ul id="currently-playing"></ul>
     </div>
-
   </div>
-
 </div>
+<div style="display:none;" id="hiddencruft"></div>
 </body>
 </html>

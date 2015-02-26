@@ -1,0 +1,11 @@
+{
+  "firebase": "gdcsnake",
+  "public": ".",
+  "ignore": [
+    "firebase.json",
+    "**/.*",
+    "**/node_modules/**",
+    "security-rules.json"
+  ],
+  "rules": "security-rules.json"
+}

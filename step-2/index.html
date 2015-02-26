@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-2.1.3.min.js"></script>
+<!-- bootstrap -->
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap-theme.min.css">
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/js/bootstrap.min.js"></script>
+
+<!-- Firebase -->
+<script src="https://cdn.firebase.com/js/client/2.2.1/firebase.js"></script>
+
+<link rel="stylesheet" href="assets/screen.css">
+<script>
+$('document').ready(function () {
+  // Firebase
+  var gameRef = new Firebase("https://gdcsnake.firebaseio.com/game");
+  var playerRef = new Firebase("https://gdcsnake.firebaseio.com/player");
+
+  // Constants
+  // ms between game steps
+  var GAME_STEP_SPEED = 200;
+  // Number of features across the game field
+  var LOGICAL_GAME_SIZE = 100;
+  // Player's client spawns a new apple every this many ms
+  var APPLE_INTERVAL_MS = 5000;
+
+  // Count down to next apple
+  var untilNextApple = APPLE_INTERVAL_MS;
+
+  var playerState = {};
+  var gameState = {apples: []};
+
+  // Listen for changes to all players (including mine)
+  playerRef.on("value", function (snapshot) {
+    playerState = snapshot.val();
+  });
+
+  // Listen for changes to the shared game state
+  gameRef.on("value", function (snapshot) {
+    // only load non-null games.
+    if (snapshot.val() != null) {
+      gameState = snapshot.val();
+    }
+  });
+
+  $("#play-again").click(function () {
+    $("#score-alert").hide();
+    createNewPlayer();
+  });
+
+  function createNewPlayer() {
+    var playerState = {
+      snakeDirection: "e",
+      snakePieces: []
+    };
+    playerState.snakePieces.push(getRandomUnusedLocation());
+    growSnake(playerState);
+    growSnake(playerState);
+
+    // Save the player
+    playerRef.set(playerState);
+  }
+
+  // Listen for keystrokes
+  var lastKeystroke;
+  $('html').keydown(function (e) {
+    lastKeystroke = e.which;
+  });
+
+  // start the game
+  createNewPlayer();
+  gameLoop();
+
+  function gameLoop() {
+    var $gameCanvas = $("#game-canvas");
+    var gameContext = $gameCanvas.get(0).getContext("2d");
+    var canvasSize = $gameCanvas.width();
+    var featureSize = canvasSize / LOGICAL_GAME_SIZE;
+
+    var playerState = playerState;
+
+    if (playerState != null && playerState.snakePieces != null) {
+      // process key input
+      switch (lastKeystroke) {
+        case 38:
+          if (playerState.snakeDirection != "s") {
+            playerState.snakeDirection = "n";
+          }
+          break;
+        case 39:
+          if (playerState.snakeDirection != "w") {
+            playerState.snakeDirection = "e";
+          }
+          break;
+        case 40:
+          if (playerState.snakeDirection != "n") {
+            playerState.snakeDirection = "s";
+          }
+          break;
+        case 37:
+          if (playerState.snakeDirection != "e") {
+            playerState.snakeDirection = "w";
+          }
+      }
+      lastKeystroke = 0;
+      
+      // Save the direction change to Firebase
+      playerRef.set(playerState);
+
+      // Move the player's snake
+
+      // Remove last element
+      playerState.snakePieces.pop();
+
+      // Create a new first element in the leading direction
+      var newPiece = {};
+      newPiece.x = playerState.snakePieces[0].x;
+      newPiece.y = playerState.snakePieces[0].y;
+
+      switch (playerState.snakeDirection) {
+        case "n":
+          newPiece.y -= 1;
+          break;
+        case "e":
+          newPiece.x += 1;
+          break;
+        case "s":
+          newPiece.y += 1;
+          break;
+        case "w":
+          newPiece.x -= 1;
+      }
+      playerState.snakePieces.unshift(newPiece);
+      
+      // Save the direction change to Firebase
+      playerRef.set(playerState);
+
+
+      // Spawn apples
+      if (untilNextApple > 0) {
+        untilNextApple -= GAME_STEP_SPEED;
+      } else {
+        // Use Firebase push to create new apples
+        gameRef.child("apples").push(getRandomUnusedLocation());
+        untilNextApple = APPLE_INTERVAL_MS;
+      }
+
+      // Get the current player's head to do collision maths
+      var snakeHead = playerState.snakePieces[0];
+
+      // If the player went off the edge, end their game
+      if (snakeHead.x <= 0 || snakeHead.x >= LOGICAL_GAME_SIZE ||
+          snakeHead.y <= 0 || snakeHead.y >= LOGICAL_GAME_SIZE) {
+        playerDies(playerState);
+      }
+
+      // If the player collides with self, end their game
+      // skip own snakes head
+      for (var i = 1; i < playerState.snakePieces.length; i++) {
+        var snakePiece = playerState.snakePieces[i];
+        if (snakePiece.x === snakeHead.x && snakePiece.y === snakeHead.y) {
+          playerDies(playerState);
+        }
+      }
+
+      // check for apple collisions
+      for (var i in gameState.apples) {
+        var apple = gameState.apples[i];
+        if (apple.x === snakeHead.x && apple.y === snakeHead.y) {
+          gameRef.child("apples").child(i).remove();
+          growSnake(playerState);
+          playerRef.set(playerState);
+        }
+      }
+    }
+
+    // Stop draws
+    gameContext.save();
+
+    // Clear the field by painting black
+    gameContext.fillStyle = "#000";
+    gameContext.fillRect(0, 0, canvasSize, canvasSize);
+
+    // Draw snakes
+    var player = playerState;
+
+    if(player != null) {
+      for (var i in player.snakePieces) {
+        var snakePiece = player.snakePieces[i];
+        gameContext.fillStyle = "hsla(" + getPlayerHue() + ", 80%, 50%, 1)";
+        gameContext.fillRect(snakePiece.x * featureSize, snakePiece.y * featureSize, featureSize, featureSize);
+      }
+    }
+
+    // Draw apples
+    for (var i in gameState.apples) {
+      var apple = gameState.apples[i];
+      gameContext.fillStyle = "#F00";
+      gameContext.fillRect(apple.x * featureSize, apple.y * featureSize, featureSize, featureSize);
+    }
+
+    // Allow draw
+    gameContext.restore();
+
+    setTimeout(gameLoop, GAME_STEP_SPEED);
+
+    function playerDies(playerState) {
+      var score = Object.keys(playerState.snakePieces).length;
+
+      // Remove the current player
+      playerRef.remove();
+
+      // Display the score and the play again button
+      $("#score").text(score);
+      $("#score-alert").show(200);
+    }
+  }
+
+  /**
+   * Gets a random location that is at least 3 squares from any existing stuff
+   */
+  function getRandomUnusedLocation() {
+    var MIN_SPACE = 3;
+    var randomLocation = {};
+
+    do {
+      randomLocation.x = Math.floor(Math.random() * LOGICAL_GAME_SIZE);
+      randomLocation.y = Math.floor(Math.random() * LOGICAL_GAME_SIZE);
+
+      var collision = false;
+
+      // Check existing game pieces
+      var gamePieces = [];
+      for (var i in gameState.apples) {
+        gamePieces.push(gameState.apples[i]);
+      }
+
+      for (var i in playerState) {
+        var playerState = playerState[i];
+        gamePieces = gamePieces.concat(playerState.snakePieces);
+      }
+
+      for (var i in gamePieces) {
+        var gamePiece = gamePieces[i];
+
+        if (gamePiece != undefined &&
+            gamePiece.x - MIN_SPACE <= randomLocation.x && gamePiece.x + MIN_SPACE >= randomLocation.x &&
+            gamePiece.y - MIN_SPACE <= randomLocation.y && gamePiece.y + MIN_SPACE >= randomLocation.y) {
+          collision = true;
+          break;
+        }
+      }
+    } while (collision);
+    return randomLocation;
+  }
+
+  /**
+   * Add 1 segment to the player's snake (on top of existing tail)
+   */
+  function growSnake(playerState) {
+    var newPiece = {};
+    newPiece.x = playerState.snakePieces[playerState.snakePieces.length - 1].x;
+    newPiece.y = playerState.snakePieces[playerState.snakePieces.length - 1].y;
+    playerState.snakePieces.push(newPiece);
+  }
+
+  function getPlayerHue() {
+    return 180;
+  }
+});
+</script>
+</head>
+<body>
+
+<div class="container-narrow">
+
+  <div class="jumbotron">
+    <canvas id="game-canvas" height="500" width="500"></canvas>
+    <hr>
+    <div class="alert alert-info" role="alert" id="score-alert" style="display: none;">
+      You died! Final score: <span id="score">0</span>
+      <button id='play-again'>Play again?</button>
+    </div>
+  </div>
+  <div class="row">
+    <div class="two-col">
+      <h4>How to play</h4>
+      <ol>
+        <li id="login-container"><a id="login-button" href="javascript:void(0);">
+          <img style="width: 182px;" src="assets/sign-in-with-google.png"/>
+        </a></li>
+        <li>Move with arrow keys.</li>
+        <li>Eat apples.</li>
+      </ol>
+    </div>
+    <div class="two-col">
+      <h4>Playing now</h4>
+      <ul id="currently-playing"></ul>
+    </div>
+  </div>
+</div>
+<div style="display:none;" id="hiddencruft"></div>
+</body>
+</html>

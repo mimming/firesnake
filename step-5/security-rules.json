@@ -1,0 +1,42 @@
+{
+  "rules": {
+    ".read": true,
+    "game": {
+      ".write": "auth != null",
+      "apples" : {
+        "$appleId": {
+          "x": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100"
+          },
+          "y": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100"
+          }
+        }
+      }
+    },
+    "players":{
+      "$playerUid": {
+        ".write" : "auth.uid == $playerUid",
+        "displayName": {
+          ".validate":"newData.isString()"
+        },
+        "imageUrl": {
+          ".validate":"newData.isString()"
+        },
+        "snakeDirection": {
+          ".validate": "newData.isString() && (newData.val() == 'n' || newData.val() == 'w' || newData.val() == 'e' || newData.val() == 's')"
+        },
+        "snakePieces": {
+          "$pieceId": {
+            "x": {
+              ".validate":"newData.isNumber() && newData.val() >= 0 && newData.val() <= 100"
+            },
+            "y": {
+              ".validate":"newData.isNumber() && newData.val() >= 0 && newData.val() <= 100"
+            }
+          }
+        }
+      }
+    }
+  }
+}
