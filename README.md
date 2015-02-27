@@ -10,7 +10,9 @@ loves to eat apples? You might have played it on an older cell phone, like the
 Nokia 5190. This codelab guides you through writing a massively multiplayer
 clone of that gaming classic.
 
-<img src="img/screenshot.png" width="300" alt="Firesnake screenshot" title="Why snake? Becuase it was the best I could do in under 200 loc">
+<a href="https://firesnake.firebaseapp.com/">
+  <img src="img/screenshot.png" width="300" alt="Firesnake screenshot" title="Why snake? Becuase it was the best I could do in under 200 loc">
+</a>
 
 You start with a simple single-player game written in JavaScript. Over a series
 of steps you will use Firebase to transform it into the massively multiplayer
