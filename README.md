@@ -10,9 +10,7 @@ loves to eat apples? You might have played it on an older cell phone, like the
 Nokia 5190. This codelab guides you through writing a massively multiplayer
 clone of that gaming classic.
 
-
-<img src="img/screenshot.png" width="" alt="Firesnake screenshot" title="Why snake? Becuase it was the best I could do in under 200 loc">
-<em>What you're going to build</em>
+<img src="img/screenshot.png" width="300" alt="Firesnake screenshot" title="Why snake? Becuase it was the best I could do in under 200 loc">
 
 You start with a simple single-player game written in JavaScript. Over a series
 of steps you will use Firebase to transform it into the massively multiplayer
@@ -63,7 +61,7 @@ and deploy it to production in the very first step.
   2. Install Firebase command line tools by following step one on the [Firebase Hosting Quickstart](https://www.firebase.com/docs/hosting/quickstart.html).
   3. Initialize your project and deploy the one player app to hosting by following
 the rest of the steps in the [Firebase Hosting Quickstart](https://www.firebase.com/docs/hosting/quickstart.html).
-  4. Navigate to https://<your-firebase>.firebaseapp.com to see your deployed,
+  4. Navigate to https://&lt;your-firebase&gt;.firebaseapp.com to see your deployed,
 publicly accessible game!
 
 If things aren't working, check out the contents of <code>/step-1</code>. Note the addition of <code>firebase.json</code>. This file tells the Firebase command line tools how to deploy your app.
