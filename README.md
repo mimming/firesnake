@@ -1,3 +1,11 @@
+# Deprecation warning
+Hey developer! I created this codelab for an event at GDC 2015.  That's over now, and there hasn't been much interest in it. So, I'm not going to be paying much attention to this repo.
+
+You're still welcome to follow the code lab, but be aware that it will go out of date over time.
+
+If you're interested in learning about Firebase, you're probably better off reading the official documentation at http://firebase.com/docs
+
+
 # Firesnake Codelab
 
 Hi there. Welcome to the Firebase codelab! In this codelab I'm going to show
